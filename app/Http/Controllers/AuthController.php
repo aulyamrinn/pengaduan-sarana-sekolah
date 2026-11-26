@@ -2,57 +2,57 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\Admin;
+use App\Models\Admin;  // <-- Kembalikan ke model Admin
 use App\Models\Siswa;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
 
 class AuthController extends Controller
 {
-    // Menampilkan halaman form login
     public function showLogin()
     {
         return view('login');
     }
 
-    // Memproses data yang dikirim dari form login
     public function login(Request $request)
     {
-        // Kolom username/NIS wajib diisi
         $request->validate([
             'username' => 'required',
+            'password' => 'required',
         ]);
 
         $input = $request->username;
 
-        // 1. Cek apakah ini admin
+        // 1. Cek apakah ini admin (dari model Admin)
         $admin = Admin::where('username', $input)->first();
 
         if ($admin) {
-            // Bandingkan password yang diketik dengan password terenkripsi di database
             if (Hash::check((string) $request->password, $admin->password)) {
-                $request->session()->regenerate(); // keamanan: buat session baru
+                $request->session()->regenerate();
                 session(['role' => 'admin', 'user_id' => $admin->username]);
                 return redirect('/admin');
             }
 
-            return back()->with('error', 'Password salah.')->withInput();
+            return back()->with('error', 'Password admin salah.')->withInput();
         }
 
-        // 2. Kalau bukan admin, cek apakah ini siswa (cukup NIS)
+        // 2. Cek apakah ini siswa (berdasarkan NIS)
         $siswa = Siswa::where('nis', $input)->first();
 
         if ($siswa) {
-            $request->session()->regenerate();
-            session(['role' => 'siswa', 'user_id' => $siswa->nis]);
-            return redirect('/siswa');
+            if (Hash::check((string) $request->password, $siswa->password)) {
+                $request->session()->regenerate();
+                session(['role' => 'siswa', 'user_id' => $siswa->nis]);
+                return redirect('/siswa');
+            }
+
+            return back()->with('error', 'Password siswa salah.')->withInput();
         }
 
-        // 3. Tidak cocok dengan keduanya -> tampil notifikasi error
-        return back()->with('error', 'Username / NIS salah.')->withInput();
+        // 3. Tidak cocok dengan keduanya
+        return back()->with('error', 'Username / NIS tidak ditemukan.')->withInput();
     }
 
-    // Keluar: hapus semua data session lalu kembali ke login
     public function logout(Request $request)
     {
         $request->session()->flush();

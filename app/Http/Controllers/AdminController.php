@@ -6,18 +6,18 @@ use App\Models\Aspirasi;
 use App\Models\InputAspirasi;
 use App\Models\Kategori;
 use App\Models\Siswa;
+use App\Models\Admin;
+use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Hash;
 
 class AdminController extends Controller
 {
-    // Menampilkan daftar aspirasi (dengan filter)
-    public function index(Request $request)
+    /**
+     * Query laporan terfilter untuk dashboard dan cetak PDF.
+     */
+    private function getFilteredLaporan(Request $request)
     {
-        // Data untuk pilihan dropdown filter
-        $kategori = Kategori::all();
-        $siswa = Siswa::all();
-
-        // Mulai query: ambil semua laporan beserta relasinya
         $query = InputAspirasi::with(['kategori', 'siswa', 'aspirasi']);
 
         // Filter per TANGGAL (contoh isian: 2026-11-23)
@@ -42,10 +42,48 @@ class AdminController extends Controller
             $query->where('id_kategori', $request->id_kategori);
         }
 
+        return $query->latest()->get();
+    }
+
+    // Menampilkan daftar aspirasi (dengan filter)
+    public function index(Request $request)
+    {
+        // Data untuk pilihan dropdown filter
+        $kategori = Kategori::all();
+        $siswa = Siswa::all();
+
         // Jalankan query, urutkan dari yang terbaru
-        $laporan = $query->latest()->get();
+        $laporan = $this->getFilteredLaporan($request);
 
         return view('admin.index', compact('laporan', 'kategori', 'siswa'));
+    }
+
+    // Cetak daftar aspirasi siswa ke PDF sesuai filter aktif
+    public function cetakPdf(Request $request)
+    {
+        $laporan = $this->getFilteredLaporan($request);
+
+        $filterInfo = [];
+        if ($request->tanggal) {
+            $filterInfo[] = 'Tanggal: ' . date('d-m-Y', strtotime($request->tanggal));
+        }
+        if ($request->bulan) {
+            $filterInfo[] = 'Bulan: ' . $request->bulan;
+        }
+        if ($request->nis) {
+            $filterInfo[] = 'NIS Siswa: ' . $request->nis;
+        }
+        if ($request->id_kategori) {
+            $kat = Kategori::find($request->id_kategori);
+            if ($kat) {
+                $filterInfo[] = 'Kategori: ' . $kat->ket_kategori;
+            }
+        }
+
+        $pdf = Pdf::loadView('admin.pdf_aspirasi', compact('laporan', 'filterInfo'))
+            ->setPaper('a4', 'landscape');
+
+        return $pdf->stream('laporan-aspirasi-siswa.pdf');
     }
 
     // Menyimpan perubahan status & feedback dari admin
@@ -72,5 +110,50 @@ class AdminController extends Controller
 
         // back() = kembali ke halaman sebelumnya (filter tetap terjaga)
         return back()->with('success', 'Status dan feedback berhasil diperbarui.');
+    }
+
+    // Menampilkan halaman kelola akun
+    public function kelolaAkun()
+    {
+        $admins = Admin::all();
+        $siswas = Siswa::all();
+        return view('admin.kelola_akun', compact('admins', 'siswas'));
+    }
+
+    // Admin bisa tambah admin baru
+    public function storeAdmin(Request $request)
+    {
+        $request->validate([
+            'username' => 'required|string|unique:admin,username', // Diubah dari 'admins' menjadi 'admin'
+            'password' => 'required|min:6',
+        ]);
+
+        Admin::create([
+            'username' => $request->username,
+            'password' => Hash::make($request->password),
+        ]);
+
+        return back()->with('success', 'Admin baru berhasil ditambahkan!');
+    }
+
+    // Admin juga bisa tambah siswa baru
+    public function storeSiswa(Request $request)
+    {
+        $request->validate([
+            'nis'      => 'required|string|unique:siswa,nis',
+            'nama'     => 'required|string|max:255',
+            'kelas'    => 'required|string',
+            'password' => 'required|min:6',
+        ]);
+
+        // Gunakan Siswa::create, BUKAN Admin::create!
+        Siswa::create([
+            'nis'      => $request->nis,
+            'nama'     => $request->nama,
+            'kelas'    => $request->kelas,
+            'password' => Hash::make($request->password),
+        ]);
+
+        return back()->with('success', 'Siswa baru berhasil ditambahkan!');
     }
 }
