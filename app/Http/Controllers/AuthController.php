@@ -36,13 +36,19 @@ class AuthController extends Controller
             return back()->with('error', 'Password admin salah.')->withInput();
         }
 
-        // 2. Cek apakah ini siswa (berdasarkan NIS)
-        $siswa = Siswa::where('nis', $input)->first();
+        // 2. Cek apakah ini siswa (berdasarkan NIS atau Nama)
+        $siswa = Siswa::where('nis', $input)
+                      ->orWhere('nama', $input)
+                      ->first();
 
         if ($siswa) {
             if (Hash::check((string) $request->password, $siswa->password)) {
                 $request->session()->regenerate();
-                session(['role' => 'siswa', 'user_id' => $siswa->nis]);
+                session([
+                    'role'    => 'siswa',
+                    'user_id' => $siswa->nis,
+                    'nama'    => $siswa->nama ?? $siswa->nis,
+                ]);
                 return redirect('/siswa');
             }
 
@@ -50,7 +56,7 @@ class AuthController extends Controller
         }
 
         // 3. Tidak cocok dengan keduanya
-        return back()->with('error', 'Username / NIS tidak ditemukan.')->withInput();
+        return back()->with('error', 'Username / NIS / Nama tidak ditemukan.')->withInput();
     }
 
     public function logout(Request $request)

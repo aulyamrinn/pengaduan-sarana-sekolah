@@ -137,8 +137,7 @@ class SiswaController extends Controller
     // Menampilkan halaman kelola akun khusus siswa
     public function kelolaAkun()
     {
-        // Sesuaikan dengan view form akun siswa yang kamu miliki
-        return view('admin.akun'); 
+        return redirect()->back()->with('error', 'Halaman kelola akun siswa belum tersedia.');
     }
 
     // Memproses penambahan akun dari sisi siswa
@@ -147,9 +146,4 @@ class SiswaController extends Controller
         // Tambahkan logika validasi & penyimpanan akun di sini jika diperlukan
         return redirect()->back()->with('success', 'Akun berhasil ditambahkan.');
     }
-    public function kelolaAkun()
-    {
-        return redirect()->back()->with('error', 'Halaman kelola akun siswa belum tersedia.');
-    }
-
 }

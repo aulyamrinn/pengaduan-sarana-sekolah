@@ -26,7 +26,7 @@
                     </a>
                 @endif
 
-                <span>{{ session('role') == 'admin' ? 'Admin' : 'Siswa' }}: {{ session('user_id') }}</span>
+                <span>{{ session('role') == 'admin' ? 'Admin' : 'Siswa' }}: {{ session('role') == 'siswa' ? (session('nama') ?? session('user_id')) : session('user_id') }}</span>
 
                 {{-- Logout memakai form POST supaya aman --}}
                 <form action="/logout" method="POST" class="inline">

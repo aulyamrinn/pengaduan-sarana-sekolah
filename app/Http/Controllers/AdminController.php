@@ -10,6 +10,7 @@ use App\Models\Admin;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Validation\Rule;
 
 class AdminController extends Controller
 {
@@ -136,6 +137,50 @@ class AdminController extends Controller
         return back()->with('success', 'Admin baru berhasil ditambahkan!');
     }
 
+    // Update data admin
+    public function updateAdmin(Request $request, $username)
+    {
+        $admin = Admin::where('username', $username)->firstOrFail();
+
+        $request->validate([
+            'username' => ['required', 'string', 'max:50', Rule::unique('admin', 'username')->ignore($admin->username, 'username')],
+            'password' => 'nullable|min:6',
+        ]);
+
+        $data = [
+            'username' => $request->username,
+        ];
+
+        if ($request->filled('password')) {
+            $data['password'] = Hash::make($request->password);
+        }
+
+        $admin->update($data);
+
+        if (session('user_id') === $username) {
+            session(['user_id' => $request->username]);
+        }
+
+        return back()->with('success', 'Data admin berhasil diperbarui!');
+    }
+
+    // Hapus data admin
+    public function destroyAdmin($username)
+    {
+        if (session('user_id') === $username) {
+            return back()->with('error', 'Tidak dapat menghapus akun admin yang sedang login.');
+        }
+
+        if (Admin::count() <= 1) {
+            return back()->with('error', 'Minimal harus ada satu akun admin.');
+        }
+
+        $admin = Admin::where('username', $username)->firstOrFail();
+        $admin->delete();
+
+        return back()->with('success', 'Akun admin berhasil dihapus!');
+    }
+
     // Admin juga bisa tambah siswa baru
     public function storeSiswa(Request $request)
     {
@@ -155,5 +200,50 @@ class AdminController extends Controller
         ]);
 
         return back()->with('success', 'Siswa baru berhasil ditambahkan!');
+    }
+
+    // Update data siswa
+    public function updateSiswa(Request $request, $nis)
+    {
+        $siswa = Siswa::where('nis', $nis)->firstOrFail();
+
+        $request->validate([
+            'nis'      => ['required', 'string', Rule::unique('siswa', 'nis')->ignore($siswa->nis, 'nis')],
+            'nama'     => 'required|string|max:255',
+            'kelas'    => 'required|string',
+            'password' => 'nullable|min:6',
+        ]);
+
+        if ((string) $request->nis !== (string) $siswa->nis && InputAspirasi::where('nis', $siswa->nis)->exists()) {
+            return back()->with('error', 'NIS tidak dapat diubah karena siswa sudah memiliki riwayat aspirasi.');
+        }
+
+        $data = [
+            'nis'   => $request->nis,
+            'nama'  => $request->nama,
+            'kelas' => $request->kelas,
+        ];
+
+        if ($request->filled('password')) {
+            $data['password'] = Hash::make($request->password);
+        }
+
+        $siswa->update($data);
+
+        return back()->with('success', 'Data siswa berhasil diperbarui!');
+    }
+
+    // Hapus data siswa
+    public function destroySiswa($nis)
+    {
+        $siswa = Siswa::where('nis', $nis)->firstOrFail();
+
+        if (InputAspirasi::where('nis', $siswa->nis)->exists()) {
+            return back()->with('error', 'Siswa tidak dapat dihapus karena masih memiliki riwayat aspirasi.');
+        }
+
+        $siswa->delete();
+
+        return back()->with('success', 'Akun siswa berhasil dihapus!');
     }
 }
